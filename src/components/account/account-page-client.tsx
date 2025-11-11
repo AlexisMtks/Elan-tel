@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { AccountForm } from "@/components/account/account-form";
 import { AccountActivity } from "@/components/account/account-activity";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { useRequireAuth } from "@/hooks/use-require-auth";
 
 type Stats = {
   listings: number;
@@ -24,6 +23,7 @@ type ProfileRow = {
 };
 
 export function AccountPageClient() {
+  const { user, checking } = useRequireAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({
     listings: 0,
@@ -32,30 +32,15 @@ export function AccountPageClient() {
   });
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [email, setEmail] = useState<string>("");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!user) return;
+
     const load = async () => {
       setLoading(true);
-      setErrorMsg(null);
-
-      // 1. Récupérer l’utilisateur connecté
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        setErrorMsg(
-          "Vous devez être connecté pour accéder à cette page."
-        );
-        setLoading(false);
-        return;
-      }
-
       setEmail(user.email ?? "");
 
-      // 2. Charger profil + stats en parallèle
+      // Profil + stats en parallèle
       const [profileRes, listingsRes, salesRes, purchasesRes] =
         await Promise.all([
           supabase
@@ -71,8 +56,8 @@ export function AccountPageClient() {
         ]);
 
       if (profileRes.error) {
-        // Si jamais le profil n’existe pas encore, on met une version minimale
         console.error("Erreur chargement profil :", profileRes.error);
+        // Fallback minimal si aucun profil
         setProfile({
           id: user.id,
           display_name: user.email ?? "Utilisateur Élan",
@@ -96,23 +81,12 @@ export function AccountPageClient() {
     };
 
     load();
-  }, []);
+  }, [user]);
 
-  if (loading) {
+  if (checking || loading) {
     return (
       <div className="text-sm text-muted-foreground">
         Chargement de votre compte…
-      </div>
-    );
-  }
-
-  if (errorMsg) {
-    return (
-      <div className="space-y-3 text-sm">
-        <p className="text-red-500">{errorMsg}</p>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/login">Aller à la page de connexion</Link>
-        </Button>
       </div>
     );
   }
