@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -33,14 +34,35 @@ export default function MessagesPage() {
     useState<ConversationId | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loadingConversations, setLoadingConversations] = useState(false);
 
-  // 🔹 Charger les conversations
+  // 🔹 Si on est en train de vérifier la session → loader
+  if (checking) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Chargement de vos conversations…
+      </p>
+    );
+  }
+
+  // 🔹 Pas d’utilisateur → même comportement que les autres pages protégées
+  if (!user) {
+    return (
+      <div className="space-y-3 text-sm">
+        <p className="text-red-500">
+          Vous devez être connecté pour accéder à vos messages.
+        </p>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/login">Aller à la page de connexion</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  // 🔹 Charger les conversations pour l’utilisateur connecté
   useEffect(() => {
-    if (!user) return;
-
     const fetchConversations = async () => {
-      setLoading(true);
+      setLoadingConversations(true);
 
       const { data, error } = await supabase
         .from("conversations")
@@ -61,11 +83,11 @@ export default function MessagesPage() {
       if (error) {
         console.error("Erreur chargement conversations :", error);
         setConversations([]);
-        setLoading(false);
+        setLoadingConversations(false);
         return;
       }
 
-      const formatted = data.map((conv) => {
+      const formatted: Conversation[] = (data ?? []).map((conv: any) => {
         const sellerRow = conv.seller?.[0];
         const buyerRow = conv.buyer?.[0];
         const listingRow = conv.listing?.[0];
@@ -77,16 +99,17 @@ export default function MessagesPage() {
           : sellerRow?.display_name ?? "Vendeur inconnu";
 
         return {
-          id: conv.id,
+          id: conv.id as number,
           contactName,
           productTitle: listingRow?.title ?? "Annonce supprimée",
-          lastMessagePreview: conv.last_message_preview,
+          lastMessagePreview: conv.last_message_preview as string | null,
           updatedAt: conv.last_message_at
             ? new Date(conv.last_message_at).toLocaleString("fr-FR", {
                 dateStyle: "short",
                 timeStyle: "short",
               })
             : "Date inconnue",
+          // 👉 pour l’instant on ne distingue pas lus / non lus : on met 0
           unreadCount: conv.messages?.[0]?.count ?? 0,
         };
       });
@@ -96,15 +119,16 @@ export default function MessagesPage() {
         setSelectedConversationId(formatted[0].id);
       }
 
-      setLoading(false);
+      setLoadingConversations(false);
     };
 
     fetchConversations();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id]);
 
   // 🔹 Charger les messages de la conversation sélectionnée
   useEffect(() => {
-    if (!selectedConversationId || !user) return;
+    if (!selectedConversationId) return;
 
     const fetchMessages = async () => {
       const { data, error } = await supabase
@@ -118,7 +142,7 @@ export default function MessagesPage() {
         return;
       }
 
-      const formatted = data.map((m) => ({
+      const formatted: Message[] = (data ?? []).map((m: any) => ({
         id: m.id.toString(),
         fromMe: m.sender_id === user.id,
         content: m.content ?? "",
@@ -132,7 +156,7 @@ export default function MessagesPage() {
     };
 
     fetchMessages();
-  }, [selectedConversationId, user]);
+  }, [selectedConversationId, user.id]);
 
   // 🔹 Envoi (simulation)
   const handleSendMessage = (e: React.FormEvent) => {
@@ -146,7 +170,7 @@ export default function MessagesPage() {
     (c) => c.id === selectedConversationId
   );
 
-  if (checking || loading) {
+  if (loadingConversations) {
     return (
       <p className="text-sm text-muted-foreground">
         Chargement de vos conversations…
@@ -352,4 +376,4 @@ function MessageBubble({ message }: { message: Message }) {
       <p className={timeClasses}>{message.time}</p>
     </div>
   );
-}
+        }
