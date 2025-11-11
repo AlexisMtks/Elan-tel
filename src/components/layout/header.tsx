@@ -7,6 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 type HeaderVariant = "default" | "search" | "compact";
 
@@ -18,7 +24,7 @@ export function Header({ variant = "default" }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [accountHref, setAccountHref] = useState("/login");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const showSearch =
     variant === "search" ||
@@ -26,18 +32,14 @@ export function Header({ variant = "default" }: HeaderProps) {
       pathname.startsWith(p),
     );
 
-  // Déterminer si l’utilisateur est connecté pour savoir où envoyer l’avatar
+  // Déterminer si l’utilisateur est connecté
   useEffect(() => {
     async function checkAuth() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (user) {
-        setAccountHref("/account");
-      } else {
-        setAccountHref("/login");
-      }
+      setIsAuthenticated(!!user);
     }
 
     checkAuth();
@@ -52,6 +54,14 @@ export function Header({ variant = "default" }: HeaderProps) {
     } else {
       router.push("/research");
     }
+  };
+
+  const handleGoToAccount = () => {
+    router.push("/account");
+  };
+
+  const handleGoToMessages = () => {
+    router.push("/messages");
   };
 
   return (
@@ -80,11 +90,37 @@ export function Header({ variant = "default" }: HeaderProps) {
           </Link>
 
           {/* Icône / menu compte */}
-          <Link href={accountHref} aria-label="Mon compte">
-            <Avatar className="h-8 w-8 cursor-pointer">
-              <AvatarFallback className="text-xs">ME</AvatarFallback>
-            </Avatar>
-          </Link>
+          {!isAuthenticated ? (
+            // Utilisateur non connecté : lien direct vers la page de connexion
+            <Link href="/login" aria-label="Mon compte">
+              <Avatar className="h-8 w-8 cursor-pointer">
+                <AvatarFallback className="text-xs">ME</AvatarFallback>
+              </Avatar>
+            </Link>
+          ) : (
+            // Utilisateur connecté : menu burger / dropdown sur l’avatar
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Menu compte"
+                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+                >
+                  <Avatar className="h-8 w-8 cursor-pointer">
+                    <AvatarFallback className="text-xs">ME</AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleGoToAccount}>
+                  Mon compte
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleGoToMessages}>
+                  Mes messages
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
     </header>
